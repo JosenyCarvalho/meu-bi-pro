@@ -8,13 +8,15 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>BI Pro - Analytics Mobile</title>
     
-    <!-- Bibliotecas Externas via CDNJS (Servidores de alta disponibilidade) -->
+    <!-- Bibliotecas Externas via CDNJS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <!-- Plugin para exibir valores nos gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
@@ -26,7 +28,7 @@
             margin: 0;
             padding: 0;
         }
-        .chart-container { position: relative; height: 45vh; width: 100%; }
+        .chart-container { position: relative; height: 48vh; width: 100%; }
         @media (min-width: 768px) { .chart-container { height: 60vh; } }
         ::-webkit-scrollbar { display: none; }
         .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
@@ -53,6 +55,9 @@
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
+
+        // Registrar o plugin de labels globalmente
+        Chart.register(ChartDataLabels);
 
         const COLORS = [
             '#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#8b5cf6', 
@@ -147,11 +152,28 @@
                         onClick: (e, el) => { if (el.length > 0) setDrillDown(processed[el[0].index]); },
                         plugins: { 
                             legend: { display: config.type !== 'bar' && config.type !== 'line', position: 'bottom' },
-                            tooltip: { backgroundColor: '#1e293b', padding: 12, cornerRadius: 12 }
+                            tooltip: { backgroundColor: '#1e293b', padding: 12, cornerRadius: 12 },
+                            datalabels: {
+                                color: (ctx) => config.type === 'bar' ? '#64748b' : '#fff',
+                                anchor: config.type === 'bar' ? 'end' : 'center',
+                                align: config.type === 'bar' ? 'top' : 'center',
+                                font: { size: 9, weight: 'bold' },
+                                formatter: (val) => {
+                                    if (val >= 1000) return (val/1000).toFixed(1) + 'k';
+                                    return val.toFixed(0);
+                                },
+                                display: (ctx) => ctx.dataset.data[ctx.dataIndex] !== 0
+                            }
                         },
                         scales: config.type === 'bar' || config.type === 'line' ? {
-                            y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10, weight: '600' }, color: '#94a3b8' } },
-                            x: { grid: { display: false }, ticks: { font: { size: 10, weight: '600' }, color: '#94a3b8' } }
+                            y: { 
+                                grid: { color: '#f1f5f9' }, 
+                                ticks: { font: { size: 10, weight: '600' }, color: '#94a3b8' } 
+                            },
+                            x: { 
+                                grid: { display: false }, 
+                                ticks: { font: { size: 10, weight: '600' }, color: '#94a3b8' } 
+                            }
                         } : {}
                     }
                 });
@@ -188,7 +210,7 @@
                             </div>
                             <div>
                                 <h1 className="font-extrabold text-lg leading-tight text-slate-800">PRO Mobile</h1>
-                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em]">Dashboard Inteligente</p>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em]">Analytics Avançado</p>
                             </div>
                         </div>
                         <label className="bg-slate-900 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-pointer active:scale-95 transition-all shadow-md">
@@ -233,11 +255,31 @@
                                     </div>
                                     <div className="flex items-end">
                                         <button onClick={() => setModal({open: true, step: 1, field: null})} className="w-full py-3 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl font-black text-[10px] uppercase">
-                                            Filtros Avançados
+                                            Filtros
                                         </button>
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Tags de Filtro e Limpeza Global */}
+                            {filters.length > 0 && (
+                                <div className="flex items-center justify-between px-1">
+                                    <div className="flex flex-wrap gap-2">
+                                        {filters.map((f, idx) => (
+                                            <div key={idx} className="bg-white border px-2 py-1 rounded-lg flex items-center gap-2 shadow-sm">
+                                                <span className="text-[8px] font-black text-slate-400 uppercase">{f.field}</span>
+                                                <button onClick={() => setFilters(filters.filter((_, i) => i !== idx))} className="text-red-400 text-xs">×</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <button 
+                                        onClick={() => setFilters([])}
+                                        className="text-[9px] font-black text-red-500 uppercase tracking-tighter bg-red-50 px-3 py-1.5 rounded-lg active:scale-95 transition-all"
+                                    >
+                                        Limpar Tudo
+                                    </button>
+                                </div>
+                            )}
 
                             <div className="bg-white p-6 rounded-[3rem] shadow-sm border border-slate-100 chart-container">
                                 <div className="absolute top-5 right-8 flex gap-2 z-10">
@@ -246,11 +288,6 @@
                                     ))}
                                 </div>
                                 <canvas ref={canvasRef}></canvas>
-                                <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
-                                    <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest text-center px-8">
-                                        {filters.length > 0 ? `Filtros: ${filters.map(f => f.field).join(', ')}` : 'Visão Geral'}
-                                    </p>
-                                </div>
                             </div>
                         </div>
                     )}
@@ -259,9 +296,30 @@
                         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-end sm:items-center justify-center">
                             <div className="bg-white w-full max-w-md rounded-t-[3rem] sm:rounded-[3rem] p-8 shadow-2xl animate-in slide-in-from-bottom duration-300">
                                 <div className="flex justify-between items-center mb-8">
-                                    <h3 className="font-black text-2xl text-slate-800">{modal.step === 1 ? 'Qual Campo?' : `Valores`}</h3>
+                                    <h3 className="font-black text-2xl text-slate-800">{modal.step === 1 ? 'Campo' : `Itens`}</h3>
                                     <button onClick={() => setModal({open: false})} className="w-10 h-10 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center font-bold">×</button>
                                 </div>
+                                
+                                {modal.step === 2 && (
+                                    <div className="flex gap-2 mb-4">
+                                        <button 
+                                            onClick={() => {
+                                                const all = [...new Set(data.map(d => String(d[modal.field])))].sort();
+                                                setTempFilters(all);
+                                            }}
+                                            className="flex-1 py-2 bg-slate-100 rounded-xl text-[9px] font-black uppercase text-slate-600"
+                                        >
+                                            Selecionar Todos
+                                        </button>
+                                        <button 
+                                            onClick={() => setTempFilters([])}
+                                            className="flex-1 py-2 bg-red-50 rounded-xl text-[9px] font-black uppercase text-red-500"
+                                        >
+                                            Limpar Seleção
+                                        </button>
+                                    </div>
+                                )}
+
                                 <div className="max-h-[40vh] overflow-y-auto space-y-2 pr-2 custom-scroll">
                                     {modal.step === 1 ? columns.map(c => (
                                         <button key={c} onClick={() => { setModal({open: true, step: 2, field: c}); setTempFilters([]); }} className="w-full text-left p-5 bg-slate-50 rounded-2xl font-black text-slate-600 flex justify-between items-center">
@@ -279,7 +337,7 @@
                                         <button onClick={() => { 
                                             setFilters([...filters.filter(f => f.field !== modal.field), { field: modal.field, vals: tempFilters }]);
                                             setModal({open: false});
-                                        }} className="flex-[2] bg-indigo-600 text-white py-5 rounded-2xl font-black shadow-2xl shadow-indigo-200 uppercase text-[10px]">Aplicar</button>
+                                        }} className="flex-[2] bg-indigo-600 text-white py-5 rounded-2xl font-black shadow-2xl shadow-indigo-200 uppercase text-[10px]">Confirmar</button>
                                     </div>
                                 )}
                             </div>
