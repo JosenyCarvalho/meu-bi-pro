@@ -1,35 +1,59 @@
-
+<!DOCTYPE html>
 <html lang="pt-pt">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>BI Pro - Analytics Mobile</title>
     
-    <!-- Bibliotecas Externas via CDN -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Bibliotecas Externas via CDNJS (Servidores de alta disponibilidade) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
     
-    <!-- Lucide Icons (Substituídos por SVGs para garantir funcionamento offline/PWA) -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
-        .chart-container { position: relative; height: 60vh; width: 100%; }
-        @media (min-width: 768px) { .chart-container { height: 70vh; } }
-        /* Esconder scrollbars mas manter funcionalidade */
+        body { 
+            font-family: 'Inter', sans-serif; 
+            -webkit-tap-highlight-color: transparent; 
+            overscroll-behavior-y: contain;
+            background-color: #F8FAFC;
+            margin: 0;
+            padding: 0;
+        }
+        .chart-container { position: relative; height: 45vh; width: 100%; }
+        @media (min-width: 768px) { .chart-container { height: 60vh; } }
         ::-webkit-scrollbar { display: none; }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        
+        #root:empty { display: none; }
+        .loader-init {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: #6366f1;
+        }
+        select { background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2.5rem; -webkit-appearance: none; -moz-appearance: none; appearance: none; }
     </style>
 </head>
-<body class="bg-[#F8FAFC]">
-    <div id="root"></div>
+<body>
+    <div id="root">
+        <div class="loader-init">
+            <div class="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+            <p class="mt-4 font-bold text-sm uppercase tracking-widest">Iniciando BI Pro...</p>
+        </div>
+    </div>
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // Cores Vibrantes para os Gráficos
         const COLORS = [
             '#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#8b5cf6', 
             '#06b6d4', '#ec4899', '#84cc16', '#3b82f6', '#f97316'
@@ -48,41 +72,44 @@
             const chartRef = useRef(null);
             const canvasRef = useRef(null);
 
-            // Importação de Ficheiro
             const onUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
                 setLoading(true);
                 const reader = new FileReader();
                 reader.onload = (evt) => {
-                    const wb = XLSX.read(evt.target.result, { type: 'binary' });
-                    const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                    if (json.length > 0) {
-                        const cols = Object.keys(json[0]);
-                        setData(json);
-                        setColumns(cols);
-                        setConfig({ 
-                            xAxis: cols[0], 
-                            yAxis: cols.find(c => typeof json[0][c] === 'number') || cols[0],
-                            agg: 'sum',
-                            type: 'bar'
-                        });
+                    try {
+                        const bstr = evt.target.result;
+                        const wb = XLSX.read(bstr, { type: 'binary' });
+                        const ws = wb.Sheets[wb.SheetNames[0]];
+                        const json = XLSX.utils.sheet_to_json(ws);
+                        
+                        if (json.length > 0) {
+                            const cols = Object.keys(json[0]);
+                            setData(json);
+                            setColumns(cols);
+                            const firstNum = cols.find(c => typeof json[0][c] === 'number') || cols[0];
+                            setConfig({ xAxis: cols[0], yAxis: firstNum, agg: 'sum', type: 'bar' });
+                        }
+                    } catch (err) {
+                        alert("Erro ao processar a planilha. Tente um formato .xlsx padrão.");
                     }
                     setLoading(false);
                 };
                 reader.readAsBinaryString(file);
             };
 
-            // Lógica de Processamento
             const getProcessed = () => {
+                if (data.length === 0) return [];
                 const filtered = data.filter(row => 
-                    filters.every(f => f.vals.length === 0 || f.vals.includes(String(row[f.field])))
+                    filters.every(f => !f.vals || f.vals.length === 0 || f.vals.includes(String(row[f.field])))
                 );
                 
                 const groups = {};
                 filtered.forEach(row => {
-                    const k = String(row[config.xAxis]) || 'N/A';
-                    const v = parseFloat(row[config.yAxis]) || 0;
+                    const k = String(row[config.xAxis] ?? 'N/A');
+                    const rawVal = row[config.yAxis];
+                    const v = typeof rawVal === 'number' ? rawVal : parseFloat(rawVal) || 0;
                     if (!groups[k]) groups[k] = { val: 0, count: 0, rows: [] };
                     groups[k].val += v;
                     groups[k].count++;
@@ -97,7 +124,6 @@
                 }));
             };
 
-            // Atualização do Gráfico
             useEffect(() => {
                 if (data.length === 0 || !canvasRef.current) return;
                 const processed = getProcessed();
@@ -108,23 +134,29 @@
                     data: {
                         labels: processed.map(p => p.label),
                         datasets: [{
+                            label: config.yAxis,
                             data: processed.map(p => p.value),
                             backgroundColor: processed.map(p => p.color),
-                            borderRadius: config.type === 'bar' ? 8 : 0,
+                            borderRadius: config.type === 'bar' ? 12 : 0,
+                            borderWidth: 0
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        onClick: (e, el) => {
-                            if (el.length > 0) setDrillDown(processed[el[0].index]);
+                        onClick: (e, el) => { if (el.length > 0) setDrillDown(processed[el[0].index]); },
+                        plugins: { 
+                            legend: { display: config.type !== 'bar' && config.type !== 'line', position: 'bottom' },
+                            tooltip: { backgroundColor: '#1e293b', padding: 12, cornerRadius: 12 }
                         },
-                        plugins: { legend: { display: config.type !== 'bar' } }
+                        scales: config.type === 'bar' || config.type === 'line' ? {
+                            y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10, weight: '600' }, color: '#94a3b8' } },
+                            x: { grid: { display: false }, ticks: { font: { size: 10, weight: '600' }, color: '#94a3b8' } }
+                        } : {}
                     }
                 });
             }, [data, config, filters]);
 
-            // Exportação e Partilha
             const handleShare = async (item) => {
                 const ws = XLSX.utils.json_to_sheet(item.rows);
                 const wb = XLSX.utils.book_new();
@@ -133,7 +165,7 @@
                 const file = new File([buf], `BI_${item.label}.xlsx`, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    try { await navigator.share({ files: [file], title: 'Exportação BI' }); }
+                    try { await navigator.share({ files: [file], title: 'Exportação BI Pro' }); }
                     catch { triggerDownload(file); }
                 } else {
                     triggerDownload(file);
@@ -144,136 +176,147 @@
                 const url = URL.createObjectURL(file);
                 const a = document.createElement('a');
                 a.href = url; a.download = file.name; a.click();
+                setTimeout(() => URL.revokeObjectURL(url), 100);
             };
 
             return (
                 <div className="max-w-4xl mx-auto min-h-screen flex flex-col">
-                    {/* Top Bar */}
-                    <header className="bg-white p-4 flex justify-between items-center shadow-sm border-b">
-                        <div className="flex items-center gap-2">
-                            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black">BI</div>
-                            <h1 className="font-extrabold text-lg tracking-tight">PRO Mobile</h1>
+                    <header className="bg-white p-5 flex justify-between items-center shadow-sm border-b sticky top-0 z-20">
+                        <div className="flex items-center gap-3">
+                            <div className="w-11 h-11 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                                <span className="font-black text-xl italic">BI</span>
+                            </div>
+                            <div>
+                                <h1 className="font-extrabold text-lg leading-tight text-slate-800">PRO Mobile</h1>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em]">Dashboard Inteligente</p>
+                            </div>
                         </div>
-                        <label className="bg-gray-900 text-white px-4 py-2 rounded-xl text-sm font-bold cursor-pointer active:scale-95 transition-transform">
-                            Carregar Excel
+                        <label className="bg-slate-900 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-pointer active:scale-95 transition-all shadow-md">
+                            Importar
                             <input type="file" className="hidden" accept=".xlsx,.csv" onChange={onUpload} />
                         </label>
                     </header>
 
                     {data.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center p-10 text-center opacity-40">
-                            <div className="w-20 h-20 bg-gray-200 rounded-full mb-4"></div>
-                            <p className="font-bold uppercase tracking-widest text-xs">Importe dados para começar</p>
+                        <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+                            <div className="w-24 h-24 bg-white rounded-[2.5rem] shadow-xl shadow-slate-100 flex items-center justify-center mb-8 border border-slate-50">
+                                <span className="text-4xl">📊</span>
+                            </div>
+                            <h2 className="font-black text-xl text-slate-800 mb-2">Sem Dados Ativos</h2>
+                            <p className="text-slate-400 text-sm max-w-[240px] leading-relaxed">Carregue um Excel para começar a analisar.</p>
                         </div>
                     ) : (
-                        <div className="flex-1 p-4 space-y-4">
-                            {/* Controlos Dinâmicos */}
-                            <div className="grid grid-cols-2 gap-3 bg-white p-4 rounded-2xl shadow-sm border">
-                                <div className="space-y-1">
-                                    <span className="text-[10px] font-black text-gray-400 uppercase">Dimensão (X)</span>
-                                    <select value={config.xAxis} onChange={e => setConfig({...config, xAxis: e.target.value})} className="w-full bg-gray-50 p-2 rounded-lg text-sm font-bold border-0">
-                                        {columns.map(c => <option key={c}>{c}</option>)}
-                                    </select>
-                                </div>
-                                <div className="space-y-1">
-                                    <span className="text-[10px] font-black text-gray-400 uppercase">Cálculo</span>
-                                    <select value={config.agg} onChange={e => setConfig({...config, agg: e.target.value})} className="w-full bg-gray-50 p-2 rounded-lg text-sm font-bold border-0">
-                                        <option value="sum">Soma</option>
-                                        <option value="avg">Média</option>
-                                        <option value="count">Contagem</option>
-                                    </select>
-                                </div>
-                                <div className="col-span-2">
-                                    <button onClick={() => setModal({open: true, step: 1, field: null})} className="w-full py-3 bg-indigo-50 text-indigo-700 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
-                                        Filtros Avançados
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Tags de Filtro */}
-                            <div className="flex flex-wrap gap-2">
-                                {filters.map((f, idx) => (
-                                    <div key={idx} className="bg-white border px-2 py-1 rounded-md flex items-center gap-2 shadow-sm">
-                                        <span className="text-[10px] font-bold text-gray-400 uppercase">{f.field}:</span>
-                                        <span className="text-[10px] font-bold text-indigo-600">{f.vals.length} itens</span>
-                                        <button onClick={() => setFilters(filters.filter((_, i) => i !== idx))} className="text-gray-300">×</button>
+                        <div className="flex-1 p-4 space-y-4 safe-bottom">
+                            <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase">Dimensão X</span>
+                                        <select value={config.xAxis} onChange={e => setConfig({...config, xAxis: e.target.value})} className="w-full bg-slate-50 p-3 rounded-xl text-xs font-bold border-0">
+                                            {columns.map(c => <option key={c}>{c}</option>)}
+                                        </select>
                                     </div>
-                                ))}
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase">Métrica Y</span>
+                                        <select value={config.yAxis} onChange={e => setConfig({...config, yAxis: e.target.value})} className="w-full bg-slate-50 p-3 rounded-xl text-xs font-bold border-0">
+                                            {columns.map(c => <option key={c}>{c}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase">Cálculo</span>
+                                        <select value={config.agg} onChange={e => setConfig({...config, agg: e.target.value})} className="w-full bg-slate-50 p-3 rounded-xl text-xs font-bold border-0">
+                                            <option value="sum">Soma</option>
+                                            <option value="avg">Média</option>
+                                            <option value="count">Contagem</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex items-end">
+                                        <button onClick={() => setModal({open: true, step: 1, field: null})} className="w-full py-3 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl font-black text-[10px] uppercase">
+                                            Filtros Avançados
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
 
-                            {/* Gráfico */}
-                            <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border chart-container">
-                                <div className="absolute top-4 right-6 flex gap-2 z-10">
-                                    {['bar', 'pie', 'line'].map(t => (
-                                        <button key={t} onClick={() => setConfig({...config, type: t})} className={`px-2 py-1 rounded-md text-[9px] font-black uppercase ${config.type === t ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>{t}</button>
+                            <div className="bg-white p-6 rounded-[3rem] shadow-sm border border-slate-100 chart-container">
+                                <div className="absolute top-5 right-8 flex gap-2 z-10">
+                                    {['bar', 'line', 'pie'].map(t => (
+                                        <button key={t} onClick={() => setConfig({...config, type: t})} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${config.type === t ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-50 text-slate-400'}`}>{t}</button>
                                     ))}
                                 </div>
                                 <canvas ref={canvasRef}></canvas>
+                                <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
+                                    <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest text-center px-8">
+                                        {filters.length > 0 ? `Filtros: ${filters.map(f => f.field).join(', ')}` : 'Visão Geral'}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    {/* Modal Filtro */}
                     {modal.open && (
-                        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center">
-                            <div className="bg-white w-full max-w-md rounded-t-[2rem] sm:rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom duration-300">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className="font-black text-lg">{modal.step === 1 ? 'Escolha o Campo' : `Valores de ${modal.field}`}</h3>
-                                    <button onClick={() => setModal({open: false})} className="p-2 bg-gray-100 rounded-full">×</button>
+                        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-end sm:items-center justify-center">
+                            <div className="bg-white w-full max-w-md rounded-t-[3rem] sm:rounded-[3rem] p-8 shadow-2xl animate-in slide-in-from-bottom duration-300">
+                                <div className="flex justify-between items-center mb-8">
+                                    <h3 className="font-black text-2xl text-slate-800">{modal.step === 1 ? 'Qual Campo?' : `Valores`}</h3>
+                                    <button onClick={() => setModal({open: false})} className="w-10 h-10 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center font-bold">×</button>
                                 </div>
-                                
-                                <div className="max-h-[50vh] overflow-y-auto space-y-2 pr-2">
+                                <div className="max-h-[40vh] overflow-y-auto space-y-2 pr-2 custom-scroll">
                                     {modal.step === 1 ? columns.map(c => (
-                                        <button key={c} onClick={() => { setModal({open: true, step: 2, field: c}); setTempFilters([]); }} className="w-full text-left p-4 bg-gray-50 rounded-xl font-bold hover:bg-indigo-50 transition-colors flex justify-between">
+                                        <button key={c} onClick={() => { setModal({open: true, step: 2, field: c}); setTempFilters([]); }} className="w-full text-left p-5 bg-slate-50 rounded-2xl font-black text-slate-600 flex justify-between items-center">
                                             {c} <span>→</span>
                                         </button>
                                     )) : [...new Set(data.map(d => String(d[modal.field])))].sort().map(v => (
-                                        <button key={v} onClick={() => tempFilters.includes(v) ? setTempFilters(tempFilters.filter(x => x !== v)) : setTempFilters([...tempFilters, v])} className={`w-full text-left p-4 rounded-xl font-bold transition-all ${tempFilters.includes(v) ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-50 text-gray-600'}`}>
-                                            {v || "(Vazio)"}
+                                        <button key={v} onClick={() => tempFilters.includes(v) ? setTempFilters(tempFilters.filter(x => x !== v)) : setTempFilters([...tempFilters, v])} className={`w-full text-left p-5 rounded-2xl font-black transition-all flex justify-between items-center ${tempFilters.includes(v) ? 'bg-indigo-600 text-white shadow-xl' : 'bg-slate-50 text-slate-400'}`}>
+                                            {v || "(Vazio)"} {tempFilters.includes(v) && <span>✓</span>}
                                         </button>
                                     ))}
                                 </div>
-
                                 {modal.step === 2 && (
-                                    <div className="mt-6 flex gap-3">
-                                        <button onClick={() => setModal({open: true, step: 1, field: null})} className="flex-1 py-4 bg-gray-100 rounded-2xl font-bold">Voltar</button>
+                                    <div className="mt-8 flex gap-4">
+                                        <button onClick={() => setModal({open: true, step: 1, field: null})} className="flex-1 py-5 bg-slate-100 rounded-2xl font-black text-slate-400 uppercase text-[10px]">Voltar</button>
                                         <button onClick={() => { 
                                             setFilters([...filters.filter(f => f.field !== modal.field), { field: modal.field, vals: tempFilters }]);
                                             setModal({open: false});
-                                        }} className="flex-2 bg-indigo-600 text-white py-4 px-8 rounded-2xl font-bold shadow-lg shadow-indigo-100">Aplicar</button>
+                                        }} className="flex-[2] bg-indigo-600 text-white py-5 rounded-2xl font-black shadow-2xl shadow-indigo-200 uppercase text-[10px]">Aplicar</button>
                                     </div>
                                 )}
                             </div>
                         </div>
                     )}
 
-                    {/* Drill Down */}
                     {drillDown && (
-                        <div className="fixed inset-0 bg-black/60 z-[60] flex items-end sm:items-center justify-center">
-                            <div className="bg-white w-full max-w-lg rounded-t-[2.5rem] sm:rounded-3xl overflow-hidden flex flex-col max-h-[80vh]">
-                                <div className="p-6 bg-gray-900 text-white flex justify-between items-center">
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center">
+                            <div className="bg-white w-full max-w-lg rounded-t-[3rem] sm:rounded-[3.5rem] overflow-hidden flex flex-col max-h-[85vh] shadow-2xl">
+                                <div className="p-8 bg-slate-900 text-white flex justify-between items-center">
                                     <div>
-                                        <p className="text-[10px] font-black uppercase text-gray-500">Recorte de Dados</p>
-                                        <h4 className="font-black text-xl">{drillDown.label}</h4>
+                                        <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-1">Detalhes</p>
+                                        <h4 className="font-black text-2xl tracking-tight">{drillDown.label}</h4>
                                     </div>
-                                    <button onClick={() => setDrillDown(null)} className="p-2 bg-white/10 rounded-full">×</button>
+                                    <button onClick={() => setDrillDown(null)} className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center font-bold">×</button>
                                 </div>
-                                <div className="flex-1 overflow-auto p-4 bg-gray-50">
-                                    <table className="w-full text-[10px] border-collapse">
-                                        <thead className="bg-white sticky top-0">
-                                            <tr>{columns.map(c => <th key={c} className="p-2 border-b text-left text-gray-400 uppercase">{c}</th>)}</tr>
-                                        </thead>
-                                        <tbody>
-                                            {drillDown.rows.slice(0, 10).map((r, i) => (
-                                                <tr key={i}>{columns.map(c => <td key={c} className="p-2 border-b text-gray-600">{String(r[c])}</td>)}</tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                    {drillDown.rows.length > 10 && <p className="text-center py-2 text-[9px] text-gray-400">Mais {drillDown.rows.length - 10} linhas...</p>}
+                                <div className="flex-1 overflow-auto p-6 bg-[#F8FAFC]">
+                                    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                                        <table className="w-full text-[10px] border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50 border-b">
+                                                    {columns.slice(0, 4).map(c => <th key={c} className="p-4 text-left text-slate-400 font-black uppercase">{c}</th>)}
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {drillDown.rows.slice(0, 15).map((r, i) => (
+                                                    <tr key={i} className="hover:bg-indigo-50/20 transition-colors">
+                                                        {columns.slice(0, 4).map(c => <td key={c} className="p-4 text-slate-600 font-medium">{String(r[c])}</td>)}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                                <div className="p-6 border-t bg-white">
-                                    <button onClick={() => handleShare(drillDown)} className="w-full py-4 bg-green-600 text-white rounded-2xl font-black shadow-xl shadow-green-100 flex items-center justify-center gap-3">
-                                        PARTILHAR EXCEL (WHATSAPP)
+                                <div className="p-8 border-t bg-white">
+                                    <button onClick={() => handleShare(drillDown)} className="w-full py-5 bg-[#25D366] text-white rounded-3xl font-black shadow-xl shadow-green-100 flex items-center justify-center gap-3 active:scale-95 transition-all uppercase text-xs">
+                                        Partilhar Excel
                                     </button>
                                 </div>
                             </div>
@@ -281,17 +324,22 @@
                     )}
 
                     {loading && (
-                        <div className="fixed inset-0 bg-white/80 backdrop-blur-md z-[100] flex flex-col items-center justify-center">
-                            <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                            <p className="mt-4 font-black text-indigo-600 text-xs tracking-widest uppercase">A processar...</p>
+                        <div className="fixed inset-0 bg-white/95 backdrop-blur-xl z-[100] flex flex-col items-center justify-center">
+                            <div className="w-16 h-16 border-[6px] border-indigo-100 rounded-full relative">
+                                <div className="absolute inset-0 w-16 h-16 border-[6px] border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                            </div>
+                            <p className="mt-6 font-black text-indigo-600 text-[10px] tracking-[0.4em] uppercase animate-pulse">Sincronizando BI</p>
                         </div>
                     )}
                 </div>
             );
         }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        window.onload = () => {
+            const rootElement = document.getElementById('root');
+            const root = ReactDOM.createRoot(rootElement);
+            root.render(<App />);
+        };
     </script>
 </body>
 </html>
