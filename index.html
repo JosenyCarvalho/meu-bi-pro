@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#4f46e5">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>BI Pro - Analytics Sidebar</title>
+    <title>BI Mapa - Analytics Sidebar</title>
     
     <!-- Bibliotecas Externas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -185,7 +185,7 @@
                             await navigator.share({
                                 files: [file],
                                 title: `Exportação: ${item.label}`,
-                                text: 'Dados gerados pelo BI Pro Analytics.'
+                                text: 'Dados gerados pelo BI do MAPA.'
                             });
                         } catch (shareError) {
                             console.warn("Partilha nativa falhou, a usar download...", shareError);
@@ -219,7 +219,7 @@
                     {/* Sidebar Lateral */}
                     <aside className={`sidebar-transition fixed lg:static z-40 h-full bg-white border-r shadow-2xl lg:shadow-none flex flex-col ${sidebarOpen ? 'w-72 translate-x-0' : 'w-0 -translate-x-full lg:translate-x-0 lg:w-0 overflow-hidden'}`}>
                         <div className="p-6 border-b flex justify-between items-center bg-slate-50/50">
-                            <h2 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400">Painel de Controlo</h2>
+                            <h2 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400">Painel de Controle</h2>
                             <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400 font-bold">×</button>
                         </div>
                         
@@ -251,7 +251,7 @@
                                     </button>
                                 </>
                             )}
-                            {data.length === 0 && <p className="text-xs text-slate-300 font-medium text-center py-10 italic">Importe dados para ativar os controlos.</p>}
+                            {data.length === 0 && <p className="text-xs text-slate-300 font-medium text-center py-10 italic">Importe dados para ativar os controles.</p>}
                         </div>
 
                         <div className="p-6 border-t bg-slate-50/50">
@@ -270,7 +270,7 @@
                                 </button>
                                 <div className="flex items-center gap-2">
                                     <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-black italic text-xs">BI</div>
-                                    <h1 className="font-extrabold text-slate-800 text-sm tracking-tighter">ANALYTICS</h1>
+                                    <h1 className="font-extrabold text-slate-800 text-sm tracking-tighter">MAPA</h1>
                                 </div>
                             </div>
                             <label className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase cursor-pointer active:scale-95 shadow-lg">
